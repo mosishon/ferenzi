@@ -3,6 +3,7 @@ from concurrent.futures import ProcessPoolExecutor
 import os
 import logging
 
+
 # Initialize logging
 logging.basicConfig(level=logging.INFO,filename="telethon.log",filemode="a+",format= '[%(levelname)s] {%(pathname)s:%(lineno)d} %(asctime)s %(message)s')    
 logging.info("[!] Logging initialized")
@@ -13,32 +14,32 @@ import colorama
 
 # package imports
 from bot.constants import (BOT_TOKEN, SESSION_NAME,SESSION2_NAME,API_ID,API_HASH,PHONE_NUMBER)
-from bot.handlers import (handle_message,handle_admin_message)
 from bot.utils import (get_admins)
 from bot.config import (PROXY)
 from bot.db import (C_USERS,C_GROUPS,C_ADMINS)
-
+from bot.clients import client,client_user
 #Initialize colorama
 colorama.init()
 logging.info("[!] colorama initialized")
 
 
 
-# Create a TelegramClient instance (API Bot)
-client = TelegramClient(SESSION_NAME, API_ID, API_HASH,proxy=PROXY)
 
-# Create a client instance (User)
-client_user = TelegramClient(SESSION2_NAME, API_ID, API_HASH,proxy=PROXY)
 
-# Add the event handler
-client.add_event_handler(handle_message,events.NewMessage())
-client.add_event_handler(handle_admin_message,events.NewMessage(from_users=get_admins()))
+
 
 # Start the user client just for logging in
 client_user.start(phone=PHONE_NUMBER)
 logging.info("[!] User client started for logging in")
 client_user.disconnect()
 logging.info("[!] User client disconnected for logging in")
+
+from bot.handlers import (handle_group_message_admin, handle_message,handle_admin_message)
+
+# Add the event handler
+client.add_event_handler(handle_message,events.NewMessage(func=lambda x: x.is_private))
+client.add_event_handler(handle_admin_message,events.NewMessage(func=lambda x: x.is_private and x.sender_id in get_admins()))
+client.add_event_handler(handle_group_message_admin,events.NewMessage())
 
 if __name__ == "__main__":
     try:
