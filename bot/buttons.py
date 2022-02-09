@@ -1,6 +1,8 @@
 from telethon import Button
 from bot.constants import SUPER_SUDO_USERNAME
 
+
+# Define three funciotns for creating buttons more easily
 def button_text(text:str)->Button:
     """
     (SYNC)
