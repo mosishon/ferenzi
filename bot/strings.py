@@ -13,7 +13,7 @@ BOT_INSTALLED_SUCCESSFULLY = "ربات با موفقیت نصب شد"
 BOT_UNINSTALLED_SUCCESSFULLY = "ربات با موفقیت حذف شد"
 BOT_ISNOT_INSTALLED = "ربات در گروه شما فعال نیست"
 I_LEAVE_GROUP = "این گروه از لیست گروه های نصب شده خارج شد.\nربات ها به زودی از گروه خارج میشوند"
-MAKE_ME_ADMIN = "لطفا ابتدا برای اجرای تمامی دستورات  من را به ادمین گروه ارتقا دهید"
+MAKE_ME_ADMIN = "لطفا ابتدا برای اجرای تمامی دستورات  من را به ادمین گروه (تیک افزودن ادمین نیاز میباشد) ارتقا دهید"
 IM_HERE_TO_HELP = "سلام.\nمن ربات دو قلو و کمکی فرنزی هستم." #TODO: bot name should be dynamic
 # errors texts
 UNKNOWN_ERROR_OCURRED = "خطای ناشناخته رخ داده است"
