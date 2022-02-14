@@ -12,3 +12,6 @@ SUPER_SUDO_USERNAME = "@MosiShon"
 SUPER_SUDO_ID = 932528835
 
 
+# Cli Bot
+CLEARING_LIMIT = 10000 # how much messages to delete in a group
+
