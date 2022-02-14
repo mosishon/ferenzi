@@ -12,4 +12,4 @@ db:database.Database = getattr(client, DATABASE_NAME)
 # Get the collection
 C_USERS = db.users
 C_GROUPS = db.groups
-C_ADMINS = db.admins
+
