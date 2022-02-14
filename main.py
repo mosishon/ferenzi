@@ -16,7 +16,7 @@ import colorama
 from bot.constants import (BOT_TOKEN, SESSION_NAME,SESSION2_NAME,API_ID,API_HASH,PHONE_NUMBER)
 from bot.utils import (get_admins)
 from bot.config import (PROXY)
-from bot.db import (C_USERS,C_GROUPS,C_ADMINS)
+from bot.db import (C_USERS,C_GROUPS)
 from bot.clients import client,client_user
 #Initialize colorama
 colorama.init()
@@ -34,12 +34,14 @@ logging.info("[!] User client started for logging in")
 client_user.disconnect()
 logging.info("[!] User client disconnected for logging in")
 
-from bot.handlers import (handle_group_message_admin, handle_message,handle_admin_message)
+from bot.handlers import (handle_group_callback_admin, handle_group_message_admin, handle_group_message_user, handle_message,handle_admin_message)
 
 # Add the event handler
-client.add_event_handler(handle_message,events.NewMessage(func=lambda x: x.is_private))
-client.add_event_handler(handle_admin_message,events.NewMessage(func=lambda x: x.is_private and x.sender_id in get_admins()))
-client.add_event_handler(handle_group_message_admin,events.NewMessage())
+client.add_event_handler(handle_message,events.NewMessage(func=lambda x: x.is_private and x.sender_id not in get_admins(x.chat_id)))
+client.add_event_handler(handle_admin_message,events.NewMessage(func=lambda x: x.is_private and x.sender_id in get_admins(x.chat_id)))
+client.add_event_handler(handle_group_message_admin,events.NewMessage(func=lambda x: not x.is_private and x.sender_id in get_admins(x.chat_id)))
+client.add_event_handler(handle_group_message_user,events.NewMessage(func=lambda x: not x.is_private and x.sender_id not in get_admins(x.chat_id)))
+client.add_event_handler(handle_group_callback_admin,events.CallbackQuery(func=lambda x: not x.is_private and x.sender_id in get_admins(x.chat_id)))
 
 if __name__ == "__main__":
     try:
