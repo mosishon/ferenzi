@@ -1,13 +1,15 @@
 import asyncio
 import logging
-from pickle import FALSE
 import telethon
 from telethon.tl.custom import Message
+from telethon.tl.types import ChannelParticipantsAdmins
+from bot.constants import SUPER_SUDO_ID
+
 from bot.db import C_GROUPS
 from bot.exceptions import GroupAlreadyExists, GroupNotExists
-from bot.strings import (BOT_ALREADY_INSTALLED, BOT_INSTALLED_SUCCESSFULLY, BOT_ISNOT_INSTALLED, BOT_UNINSTALLED_SUCCESSFULLY, I_LEAVE_GROUP, IM_HERE_TO_HELP, MAKE_ME_ADMIN, START_ADMIN, START_SUDO_GROUP,START_USER, THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU, UNKNOWN_ERROR_OCURRED)
-from bot.buttons import (CONTACT_SUPER_ADMIN)
-from bot.utils import add_new_group, call_async, check_admin_access, delete_group, is_sudo, join_group, leave_group
+from bot.strings import (BOT_ALREADY_INSTALLED,ADMINS_CONFIGURED, BOT_INSTALLED_SUCCESSFULLY, BOT_ISNOT_INSTALLED, BOT_UNINSTALLED_SUCCESSFULLY, CLEAR_ALL, CLEATING_FINISHED, I_LEAVE_GROUP, IM_HERE_TO_HELP, MAKE_ME_ADMIN, PANEL_TEXT, PANEL_TEXTS_TO_OPEN, START_ADMIN, START_SUDO_GROUP,START_USER, THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU, UNKNOWN_ERROR_OCURRED,BOT_CLI_TITLE,CONFIGURE_ADMINS)
+from bot.buttons import (CONTACT_SUPER_ADMIN,CONFIGURE_ADMINS_BTN, PANEL_HOME_BTN, PANEL_LOCKS_BTN)
+from bot.utils import add_new_admin, add_new_group, call_async, check_admin_access, check_group, clear_all_message, delete_group, get_media_type, is_sudo, join_group, leave_group, process_media_delete, update_lock
 from bot.clients import client_user,client
 
 async def handle_message(message:Message):
@@ -68,11 +70,16 @@ async def handle_group_message_admin(message:Message):
                 # check admin access
                 is_admin = await check_admin_access(client,chat_id)
                 if is_admin:
-                    add_new_group(chat_id)
-                    await message.reply(BOT_INSTALLED_SUCCESSFULLY)
                     # get chat invite link
                     invite_link = await client(telethon.functions.messages.ExportChatInviteRequest(chat))
                     res = await join_group(client_user,invite_link.link)
+                    client_user_id = await call_async(client_user,client_user.get_me)
+                    await client.edit_admin(chat,client_user_id.id,delete_messages=True,ban_users=True,title=BOT_CLI_TITLE)
+                    add_new_group(chat_id)
+                    await message.reply(BOT_INSTALLED_SUCCESSFULLY)
+                    await message.reply(CONFIGURE_ADMINS,buttons=CONFIGURE_ADMINS_BTN)
+
+
                     if res:
                         await call_async(client_user,client_user.send_message,chat_id,IM_HERE_TO_HELP)
 
@@ -88,7 +95,8 @@ async def handle_group_message_admin(message:Message):
                 logging.exception(f"Error while installing bot in group {chat_id}")
 
         else:
-            await message.reply(THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU,buttons=CONTACT_SUPER_ADMIN)
+            if text.lower() != "/start":
+                await message.reply(THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU,buttons=CONTACT_SUPER_ADMIN)
     elif text.lower() in ("/stop","حذف نصب"):
         # Check if the user is a sudo or admin
         if is_sudo(user_id):
@@ -111,5 +119,85 @@ async def handle_group_message_admin(message:Message):
                 logging.exception(f"Error while uninstalling bot in group {chat_id}")
         else:
             await message.reply(THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU,buttons=CONTACT_SUPER_ADMIN)
+    elif text.lower() in PANEL_TEXTS_TO_OPEN:
+        await message.reply(PANEL_TEXT,buttons=PANEL_HOME_BTN(user_id))
+    elif text.lower() in CLEAR_ALL:
+        task = asyncio.create_task(call_async(client_user,clear_all_message,client_user,chat_id))
+        task.add_done_callback(lambda x: asyncio.create_task(call_async(client_user,client_user.send_message,chat_id,CLEATING_FINISHED)))
         
-        
+async def handle_group_callback_admin(message:telethon.events.CallbackQuery.Event):
+    """
+    Handle a callback from admin or sudo in group.
+
+    :param message: telethon.tl.custom.Message
+    :return: None
+    """
+    chat_id = message.chat_id
+    if not check_group(chat_id):
+        return
+    user_id = message.sender_id
+    chat = await message.get_input_chat()
+    sender = await message.get_input_sender()
+    access = 1
+    args = []
+    data = message.data.decode("utf8")
+    logging.debug(f"Received callback: {data} from chat {chat_id} from user {user_id} on handle_group_callback_admin")
+    if "|" in data:
+        access = int(data.split("|")[0])
+        data = data.split("|")[1]
+    if "=>" in data:
+        args = data.split("=>")[1].split("-")
+        data = data.split("=>")[0]
+    if data.lower() == "configure_admins":
+        # Check if the user is a sudo or admin
+        if is_sudo(user_id):
+            count = 0
+            async for admin in client.iter_participants(chat,filter=ChannelParticipantsAdmins):
+                count += 1
+                if admin.id != SUPER_SUDO_ID:
+                    add_new_admin(chat_id,admin.id)
+            await message.edit(ADMINS_CONFIGURED.format(count))
+        else:
+            await message.answer(THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU)
+    elif data.lower() == "close_sudo" and is_sudo(user_id):
+       await message.delete()
+
+    # check if the admin access is enabled
+    if access in (user_id,1) or user_id == SUPER_SUDO_ID:
+
+        if data == "group_locks":
+            await message.edit(f"locks of gp {chat_id} access for {access}",buttons=PANEL_LOCKS_BTN(chat_id,user_id))
+        elif data == "lock":
+            update_lock(chat_id,args[0],True)
+            await message.edit(f"locks of gp {chat_id} access for {access}",buttons=PANEL_LOCKS_BTN(chat_id,user_id))
+        elif data == "unlock":
+            update_lock(chat_id,args[0],False)
+            await message.edit(f"locks of gp {chat_id} access for {access}",buttons=PANEL_LOCKS_BTN(chat_id,user_id))
+        elif data =="main_menu":
+            await message.edit(PANEL_TEXT,buttons=PANEL_HOME_BTN(user_id))
+        elif data =="close_menu":
+            await message.delete()
+
+    else:
+        await message.answer(THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU)
+
+
+
+async def handle_group_message_user(message:Message):
+    """
+    Handle a message from users in group.
+
+    :param message: telethon.tl.custom.Message
+    :return: None
+    """
+    chat_id = message.chat_id
+    if not check_group(chat_id):
+        return
+    user_id = message.sender_id
+    chat = await message.get_input_chat()
+    sender = await message.get_input_sender()
+    text = message.text
+    media = message.media
+    logging.debug(f"Received message: {text} from chat {chat_id} from user {user_id} on handle_group_message_user")
+    if await process_media_delete(media,chat_id,message):
+        return
