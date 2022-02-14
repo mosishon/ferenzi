@@ -73,3 +73,20 @@ class InvalidInviteLink(InvalidError):
 
     """
     details = "The invite link is invalid."
+
+
+class UserAlreadyAdmin(AlreadyExists):
+    """The user is already an admin of the group.
+    :param details: str - The details of the error.
+
+    """
+    details = "The user is already an admin of the group."
+
+
+
+class InvalidLockName(InvalidError):
+    """The requested lock name is invalid.
+    :param details: str - The details of the error.
+
+    """
+    details = "The requested lock name is invalid."
