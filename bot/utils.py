@@ -3,19 +3,24 @@ from typing import Coroutine, List
 
 import telethon
 
-from bot.constants import SUPER_SUDO_ID
+from bot.constants import SUPER_SUDO_ID,CLEARING_LIMIT
 from bot.db import C_GROUPS
-from bot.exceptions import ClientAlreadyJoined, ClientNotJoined, GroupAlreadyExists, GroupNotExists, InvalidInviteLink
+from bot.exceptions import ClientAlreadyJoined, ClientNotJoined, GroupAlreadyExists, GroupNotExists, InvalidInviteLink,UserAlreadyAdmin,InvalidLockName
+from bot.strings import CLEARING_STARTED
 
-
-def get_admins(chat_id:int=[])->List[int]:
+def get_admins(chat_id:int)->List[int]:
     """
     (SYNC)
     Get the list of admin IDs.
     :param chat_id: int - The chat ID to get the admins from.
+    [!] raise bot.exceptions.GroupNotExists if the group doesn't exist in the database.
     :return: List of admins
     """
-    return [].append(SUPER_SUDO_ID)
+    group = C_GROUPS.find_one({"chat_id":chat_id})or {}
+    # if not group:
+    #     raise GroupNotExists(f"Group {chat_id} does not exist in the database.")
+    logging.debug(f"Group {chat_id} admins: {group.get('admins')}")
+    return group.get('admins',[])+[SUPER_SUDO_ID]
 
 def is_sudo(user_id:int)->bool:
     """
@@ -36,6 +41,7 @@ def normalize_invite_link(invite_link:str)->str:
     :return: str
     """
     return invite_link.split("/")[-1].replace("+","")
+
 def add_new_group(chat_id:int):
     """
     (SYNC)
@@ -50,6 +56,29 @@ def add_new_group(chat_id:int):
         
     return C_GROUPS.insert_one({
         "chat_id": chat_id,
+        "admins":[],
+        "locks":{
+            "photo":False,
+            "gif":False,
+            "video":False,
+            "video_note":False,
+            "voice":False,
+            "sticker":False,
+            "document":False,
+            "text":False,
+            "contact":False,
+            "location":False,
+            "audio":False,
+            "poll":False,
+            "invite_link":False,
+            "link":False,
+            "telegram_service":False,
+            "forward":False,
+            "inline":False,
+            "inline_button":False,
+            "all":False
+
+        }
     })
     
 def delete_group(chat_id:int,if_exists:bool=True):
@@ -167,3 +196,150 @@ async def call_async(client:telethon.TelegramClient,func:Coroutine,*args,**kwarg
     finally:
         if connected_now:
             await client.disconnect()
+        
+def add_new_admin(chat_id:int,user_id:int,if_not_exists:bool=True):
+    """
+    (SYNC)
+    Add a new admin to the database.
+
+    :param chat_id: int - The chat ID to add.
+    :param user_id: int - The user ID to add.
+    :param if_not_exists: bool - If the admin exists, add it. default: True.
+    [!] raise bot.exceptions.UserAlreadyAdmin. if the user is already an admin. and if_not_exists is False.
+    :return: None
+    """
+    # check if the group exists
+    group = C_GROUPS.find_one({"chat_id":chat_id})
+    if not group:
+        raise GroupNotExists(f"Group {chat_id} does not exist in the database.")
+    
+    # check if the user exists in group admins
+    if int(user_id) in group["admins"]:
+        # if the user is already an admin, and if_not_exists is False, raise an exception
+        if not if_not_exists:
+            raise UserAlreadyAdmin(f"User {user_id} is already an admin of group {chat_id}.")
+        else:
+            return
+    return C_GROUPS.update_one({"chat_id":chat_id},{"$push":{"admins":int(user_id)}}) 
+
+def update_lock(chat_id:int,lock_name:str,lock_value:bool):
+    """
+    (SYNC)
+    Update the lock of the group.
+    :param chat_id: int - The chat ID to update.
+    :param lock_name: str - The lock name to update.
+    :param lock_value: bool - The lock value to update.
+    :return: None
+    [!] raise bot.exceptions.GroupNotExists if the group does not exist.
+    [!] raise bot.exceptions.InvalidLockName if the lock name is invalid.
+    """
+    group = C_GROUPS.find_one({"chat_id":chat_id})
+    if not group:
+        raise GroupNotExists(f"Group {chat_id} does not exist in the database.")
+    if lock_name not in group["locks"]:
+        raise InvalidLockName(f"Invalid lock name {lock_name}.")
+    return C_GROUPS.update_one({"chat_id":chat_id},{"$set":{"locks."+lock_name:lock_value}})
+
+def get_media_type(media:telethon.tl.types.MessageMediaDocument):
+    """
+    (SYNC)
+    Get the media type of a message.
+
+    :param media: telethon.tl.types.MessageMedia - The media to check.
+    :return: str - The media type.
+    """
+    if isinstance(media,telethon.tl.types.MessageMediaPhoto):
+        return "photo"
+    elif isinstance(media,telethon.tl.types.MessageMediaDocument):
+        if media.document.mime_type.startswith("image/"):
+            if media.document.mime_type.split("/")[-1] == "webp":
+                return "sticker"
+            return "photo"
+        elif media.document.mime_type.startswith("video/"):
+            if isinstance(media.document.attributes[-1],telethon.tl.types.DocumentAttributeAnimated):
+                return "gif"
+            return "video"
+        elif media.document.mime_type.startswith("audio/"):
+            if media.document.mime_type.split("/")[-1] == "ogg":
+                return "voice"
+            return "audio"
+        elif media.document.mime_type.startswith("application/"):
+            if media.document.mime_type.split("/")[-1] == "x-tgsticker":
+                return "sticker"
+        return "document"
+    elif isinstance(media,telethon.tl.types.MessageMediaContact):
+        return "contact"
+    elif isinstance(media,telethon.tl.types.MessageMediaGeo):
+        return "geo"
+    elif isinstance(media,telethon.tl.types.MessageMediaVenue):
+        return "venue"
+    elif isinstance(media,telethon.tl.types.MessageMediaGeoLive):
+        return "location"
+    elif isinstance(media,telethon.tl.types.MessageMediaGame):
+        return "game"
+    elif isinstance(media,telethon.tl.types.MessageMediaInvoice):
+        return "invoice"
+    elif isinstance(media,telethon.tl.types.MessageMediaUnsupported):
+        return "unsupported"
+    elif isinstance(media,telethon.tl.types.MessageMediaWebPage):
+        return "web_page"
+    elif isinstance(media,telethon.tl.types.MessageMediaPoll):
+        return "poll"
+    elif isinstance(media,telethon.tl.types.MessageMediaDice):
+        return "dice"
+    elif isinstance(media,telethon.tl.types.MessageMediaGame):
+        return "game"
+    elif isinstance(media,telethon.tl.types.MessageMediaInvoice):
+        return "invoice"
+    else:
+        return "unknown"
+
+async def process_media_delete(media:telethon.tl.types.MessageMediaDocument,chat_id:int,message:telethon.tl.custom.Message):
+    """
+    process media and locks, and delete message if needed.
+    :param media: telethon.tl.types.MessageMedia - The media to check.
+    :param chat_id: int - The chat ID to check.
+    :param message: telethon.tl.custom.Message - The message to check.
+    [!] raise bot.exceptions.GroupNotExists if the group does not exist.
+    :return: None
+    """
+    # check if the group exists
+    group = C_GROUPS.find_one({"chat_id":chat_id})
+    if not group:
+        raise GroupNotExists(f"Group {chat_id} does not exist in the database.")
+    
+    # check if the media type is locked
+    media_type = get_media_type(media)
+    if group["locks"].get(media_type) == True:
+        await message.delete()
+        logging.debug(f"Deleted message {message.id} in group {chat_id} because the media type ({media_type}) is locked.")
+        return True
+    return False
+
+async def clear_all_message(client:telethon.TelegramClient,chat_id:int):
+    print("Start clearing")
+    """
+    (ASYNC)
+    Clear all messages in a group.
+    :param client: telethon.TelegramClient - The client to use.
+    :param chat_id: int - The chat ID to clear.
+    [!] raise bot.exceptions.GroupNotExists if the group does not exist.
+    :return: None
+    """
+    # check if the group exists
+    group = C_GROUPS.find_one({"chat_id":chat_id})
+    if not group:
+        raise GroupNotExists(f"Group {chat_id} does not exist in the database.")
+
+    # alert the user, process started    
+    msg = await client.send_message(chat_id,CLEARING_STARTED)
+    await client.delete_messages(chat_id,list(range(msg.id-CLEARING_LIMIT,msg.id)),revoke=True)
+
+def check_group(chat_id:int):
+    """
+    (SYNC)
+    Check if the group exists.
+    :param chat_id: int - The chat ID to check.
+    :return: bool - True if the group exists, False otherwise.
+    """
+    return bool(C_GROUPS.find_one({"chat_id":chat_id}))
