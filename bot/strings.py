@@ -1,4 +1,4 @@
-from bot.constants import (SUPER_SUDO_USERNAME)
+from bot.constants import (MINIMUM_CHAR_LIMIT, SUPER_SUDO_USERNAME)
 
 # start texts
 START_ADMIN = "سلام ادمین عزیز خوش آمدید"
@@ -37,3 +37,10 @@ PANEL_TEXTS_TO_OPEN = ("/panel","پنل","panel")
 CLEAR_ALL = ("پاکسازی کلی","پاکسازی کل")
 CLEARING_STARTED = "فرآیند پاکسازی پیام ها شروع شد"
 CLEATING_FINISHED = "پاکسازی پیام ها به پایان رسید"
+
+#char limit
+CHAT_LIMIT_PANEL = "پنل مدیریت محدودیت کارکتر"
+ENTER_CHAR_LIMIT = "لطفا تعداد کاراکتر های مورد نیاز را وارد کنید"
+SHOULD_BE_NUMBER = "تعداد کاراکتر ها باید عدد باشد"
+SHOULD_BE_GREATER_THAN_MINIMUM_CHAR_LIMIT = "تعداد کاراکتر ها باید بزرگتر از {} باشد".format(MINIMUM_CHAR_LIMIT)
+SUCCESFUL_CHAR_LIMIT_SET = "تعداد کاراکتر ها با موفقیت تنظیم شد"

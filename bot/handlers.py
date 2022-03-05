@@ -3,13 +3,13 @@ import logging
 import telethon
 from telethon.tl.custom import Message
 from telethon.tl.types import ChannelParticipantsAdmins
-from bot.constants import SUPER_SUDO_ID
+from bot.constants import BOT_MESSAGE_DELTE_TIME, MINIMUM_CHAR_LIMIT, SUPER_SUDO_ID
 
 from bot.db import C_GROUPS
 from bot.exceptions import GroupAlreadyExists, GroupNotExists
-from bot.strings import (BOT_ALREADY_INSTALLED,ADMINS_CONFIGURED, BOT_INSTALLED_SUCCESSFULLY, BOT_ISNOT_INSTALLED, BOT_UNINSTALLED_SUCCESSFULLY, CLEAR_ALL, CLEATING_FINISHED, I_LEAVE_GROUP, IM_HERE_TO_HELP, MAKE_ME_ADMIN, PANEL_TEXT, PANEL_TEXTS_TO_OPEN, START_ADMIN, START_SUDO_GROUP,START_USER, THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU, UNKNOWN_ERROR_OCURRED,BOT_CLI_TITLE,CONFIGURE_ADMINS)
-from bot.buttons import (CONTACT_SUPER_ADMIN,CONFIGURE_ADMINS_BTN, PANEL_HOME_BTN, PANEL_LOCKS_BTN)
-from bot.utils import add_new_admin, add_new_group, call_async, check_admin_access, check_group, clear_all_message, delete_group, get_media_type, is_sudo, join_group, leave_group, process_media_delete, update_lock
+from bot.strings import (BOT_ALREADY_INSTALLED,ADMINS_CONFIGURED, BOT_INSTALLED_SUCCESSFULLY, BOT_ISNOT_INSTALLED, BOT_UNINSTALLED_SUCCESSFULLY, CHAT_LIMIT_PANEL, CLEAR_ALL, CLEATING_FINISHED, ENTER_CHAR_LIMIT, I_LEAVE_GROUP, IM_HERE_TO_HELP, MAKE_ME_ADMIN, PANEL_TEXT, PANEL_TEXTS_TO_OPEN, SHOULD_BE_GREATER_THAN_MINIMUM_CHAR_LIMIT, SHOULD_BE_NUMBER, START_ADMIN, START_SUDO_GROUP,START_USER, SUCCESFUL_CHAR_LIMIT_SET, THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU, UNKNOWN_ERROR_OCURRED,BOT_CLI_TITLE,CONFIGURE_ADMINS)
+from bot.buttons import (BACK_TO_CHAT_LIMIT_PANEL, CONTACT_SUPER_ADMIN,CONFIGURE_ADMINS_BTN, PANEL_CHAR_LIMIT_BTN, PANEL_HOME_BTN, PANEL_LOCKS_BTN)
+from bot.utils import add_new_admin, add_new_group, call_async, check_admin_access, check_group, clear_all_message, delete_after, delete_group, get_media_type, get_status, is_sudo, join_group, leave_group, process_media_delete, set_char_limit, set_status, toggle_char_limit, update_lock
 from bot.clients import client_user,client
 
 async def handle_message(message:Message):
@@ -58,6 +58,16 @@ async def handle_group_message_admin(message:Message):
     user_id = message.sender_id
     chat = await message.get_input_chat()
     sender = await message.get_input_sender()
+    status = get_status(user_id)
+    access = 1
+    args = []
+    if "|" in status:
+        access = int(status.split("|")[0])
+        status = status.split("|")[1]
+    if "=>" in status:
+        args = status.split("=>")[1].split("-")
+        status = status.split("=>")[0]
+    print(args,status)
     logging.debug(f"Received message: {text} from chat {chat_id} from user {user_id} on handle_group_message_admin")
     if text.lower() in ("/start","نصب"):
         # Check if the user is a sudo or admin
@@ -97,6 +107,7 @@ async def handle_group_message_admin(message:Message):
         else:
             if text.lower() != "/start":
                 await message.reply(THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU,buttons=CONTACT_SUPER_ADMIN)
+        
     elif text.lower() in ("/stop","حذف نصب"):
         # Check if the user is a sudo or admin
         if is_sudo(user_id):
@@ -124,7 +135,20 @@ async def handle_group_message_admin(message:Message):
     elif text.lower() in CLEAR_ALL:
         task = asyncio.create_task(call_async(client_user,clear_all_message,client_user,chat_id))
         task.add_done_callback(lambda x: asyncio.create_task(call_async(client_user,client_user.send_message,chat_id,CLEATING_FINISHED)))
-        
+    elif status == "setCharLimit":
+        if not text.isnumeric():
+            await message.delete()
+            m = await message.respond(SHOULD_BE_NUMBER)
+            asyncio.create_task(delete_after(m,BOT_MESSAGE_DELTE_TIME))
+
+        elif int(text) < MINIMUM_CHAR_LIMIT:
+            await message.delete()
+            m = await message.respond(SHOULD_BE_GREATER_THAN_MINIMUM_CHAR_LIMIT)
+            asyncio.create_task(delete_after(m,BOT_MESSAGE_DELTE_TIME))
+
+        else:
+            await message.respond(SUCCESFUL_CHAR_LIMIT_SET,buttons=PANEL_CHAR_LIMIT_BTN(chat_id,user_id))
+            set_char_limit(chat_id,int(text))
 async def handle_group_callback_admin(message:telethon.events.CallbackQuery.Event):
     """
     Handle a callback from admin or sudo in group.
@@ -177,7 +201,14 @@ async def handle_group_callback_admin(message:telethon.events.CallbackQuery.Even
             await message.edit(PANEL_TEXT,buttons=PANEL_HOME_BTN(user_id))
         elif data =="close_menu":
             await message.delete()
-
+        elif data == "char_limit":
+            await message.edit(CHAT_LIMIT_PANEL,buttons=PANEL_CHAR_LIMIT_BTN(chat_id,user_id))
+        elif data == "setCharLimit":
+            await message.edit(ENTER_CHAR_LIMIT,buttons=BACK_TO_CHAT_LIMIT_PANEL(user_id))
+            set_status(user_id,f"setCharLimit=>{chat_id}")
+        elif data == "toggleCharLimit":
+            toggle_char_limit(chat_id)
+            await message.edit(CHAT_LIMIT_PANEL,buttons=PANEL_CHAR_LIMIT_BTN(chat_id,user_id))
     else:
         await message.answer(THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU)
 

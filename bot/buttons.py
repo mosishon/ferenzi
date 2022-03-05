@@ -50,6 +50,7 @@ CONFIGURE_ADMINS_BTN = [[button_inline(T_CONFIGURE_ADMINS,"configure_admins")],[
 
     # main panel
 T_PANEL_HOME_11 = "تنظیمات قفل ها" # Text
+T_PANEL_HOME_21 = "محدودیت کارکتر" # Text
 T_BACK_HOME = "بازگشت به منوی اصلی"
 T_CLOSE = "بستن منو"
 def PANEL_HOME_BTN(user_id:int):
@@ -60,7 +61,8 @@ def PANEL_HOME_BTN(user_id:int):
     """
     
     return [
-        [button_inline(T_PANEL_HOME_11,f"{user_id}|group_locks")] #param1: how access to this button
+        [button_inline(T_PANEL_HOME_11,f"{user_id}|group_locks")], #param1: how access to this button
+        [button_inline(T_PANEL_HOME_21,f"{user_id}|char_limit")], #param1: how access to this button
     ]
 
     # locks panel
@@ -101,3 +103,26 @@ def PANEL_LOCKS_BTN(chat_id:int,user_id):
     locks.append([button_inline(T_CLOSE,F"{user_id}|close_menu")])
     return locks
  
+
+T_CHAR_LIMIT_1 = "وضعیت محدودیت کارکتر" # Text
+T_CHAR_LIMIT_2 = "تعداد کارکتر" # Text
+T_CHAR_LIMIT_3 = "جهت تنظیم عدد اینجا کلیک کنید" # Text
+BACK_TO_CHAT_LIMIT_PANEL = lambda user_id: [button_inline("برگشت به پنل محدودیت کارکتر",f"{user_id}|char_limit")]
+def PANEL_CHAR_LIMIT_BTN(chat_id:int,user_id:int):
+    """
+    (SYNC)
+    Create a button to open the char limit panel.
+    
+    :param chat_id: int - The chat id of group.
+    :param user_id: int - The user id who access the panel."""
+    group = C_GROUPS.find_one({"chat_id":chat_id})
+    if not group:
+        raise GroupNotExists("Group with chat_id {} not exists".format(chat_id))
+    is_lock = T_LOCK if group['config']['char_limit']['enabled'] else T_UNLOCK
+    limit = str(group['config']['char_limit']['limit'])
+    return [
+        [button_inline(T_CHAR_LIMIT_1,f""),button_inline(is_lock,f"{user_id}|toggleCharLimit")], #param1: how access to this button
+        [button_inline(T_CHAR_LIMIT_2,f""),button_inline(limit,"")], #param1: how access to this button
+        [button_inline(T_CHAR_LIMIT_3,f"{user_id}|setCharLimit")], #param1: how access to this button
+        [button_inline(T_CLOSE,F"{user_id}|close_menu")]#param1: how access to this button
+    ]
