@@ -1,10 +1,11 @@
+import asyncio
 import logging
 from typing import Coroutine, List
 
 import telethon
 
 from bot.constants import SUPER_SUDO_ID,CLEARING_LIMIT
-from bot.db import C_GROUPS
+from bot.db import C_GROUPS, C_USERS
 from bot.exceptions import ClientAlreadyJoined, ClientNotJoined, GroupAlreadyExists, GroupNotExists, InvalidInviteLink,UserAlreadyAdmin,InvalidLockName
 from bot.strings import CLEARING_STARTED
 
@@ -57,6 +58,13 @@ def add_new_group(chat_id:int):
     return C_GROUPS.insert_one({
         "chat_id": chat_id,
         "admins":[],
+        "config":{
+            "char_limit":{
+                "enabled":False,
+                "limit":0,
+            },
+
+        },
         "locks":{
             "photo":False,
             "gif":False,
@@ -343,3 +351,60 @@ def check_group(chat_id:int):
     :return: bool - True if the group exists, False otherwise.
     """
     return bool(C_GROUPS.find_one({"chat_id":chat_id}))
+
+
+def set_status(user_id:str,status:str):
+    """
+    (SYNC)
+    Set the status of a user.
+    :param user_id: str - The user ID to set.
+    :param status: str - The status to set.
+    :return: bool
+    """
+    return bool(C_USERS.update_one({"user_id":user_id},{"$set":{"status":status}},upsert=True))
+
+
+def get_status(user_id:str):
+    """
+    (SYNC)
+    Get the status of a user.
+    :param user_id: str - The user ID to get.
+    :return: str
+    """
+    user = C_USERS.find_one({"user_id":user_id})
+    if not user:
+        return ""
+    return user.get("status","")
+
+
+def set_char_limit(chat_id:int,limit:int):
+    """
+    (SYNC)
+    Set the character limit for a group.
+    :param chat_id: int - The chat ID to set.
+    :param limit: int - The character limit to set.
+    :return: bool
+    """
+    return bool(C_GROUPS.update_one({"chat_id":chat_id},{"$set":{"config.char_limit.limit":limit}}))
+
+async def delete_after(message:telethon.custom.message.Message,time:int):
+    """
+    (ASYNC)
+    Delete a message after a certain time.
+    :param message: telethon.custom.message.Message - The message to delete.
+    :param time: int - The time to wait before deleting the message.
+    :return: None
+    """
+    await asyncio.sleep(time)
+    await message.delete()
+
+def toggle_char_limit(chat_id:int,):
+    """
+    (SYNC)
+    Toggle the character limit for a group.
+    :param chat_id: int - The chat ID to toggle.
+    :return: bool
+    """
+    group = C_GROUPS.find_one({"chat_id":chat_id})
+    enabled = not group["config"]["char_limit"]["enabled"]
+    return bool(C_GROUPS.update_one({"chat_id":chat_id},{"$set":{"config.char_limit.enabled":enabled}}))
