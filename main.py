@@ -9,14 +9,13 @@ logging.basicConfig(level=logging.INFO,filename="telethon.log",filemode="a+",for
 logging.info("[!] Logging initialized")
 
 # external imports
-from telethon import TelegramClient,events
+from telethon import events
 import colorama
 
 # package imports
-from bot.constants import (BOT_TOKEN, SESSION_NAME,SESSION2_NAME,API_ID,API_HASH,PHONE_NUMBER)
+from bot.constants import (BOT_TOKEN,PHONE_NUMBER)
 from bot.utils import (get_admins)
-from bot.config import (PROXY)
-from bot.db import (C_USERS,C_GROUPS)
+
 from bot.clients import client,client_user
 #Initialize colorama
 colorama.init()
