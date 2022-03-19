@@ -6,7 +6,7 @@ import telethon
 
 from bot.constants import SUPER_SUDO_ID,CLEARING_LIMIT
 from bot.db import C_GROUPS, C_USERS
-from bot.exceptions import ClientAlreadyJoined, ClientNotJoined, GroupAlreadyExists, GroupNotExists, InvalidInviteLink,UserAlreadyAdmin,InvalidLockName
+from bot.exceptions import ClientAlreadyJoined, ClientNotJoined, GroupAlreadyExists, GroupNotExists, InvalidInviteLink,UserAlreadyAdmin,InvalidLockName, UserAlreadyExists
 from bot.strings import CLEARING_STARTED
 
 def get_admins(chat_id:int)->List[int]:
@@ -63,6 +63,11 @@ def add_new_group(chat_id:int):
                 "enabled":False,
                 "limit":0,
             },
+            "empty_profile":{
+                "enabled":False,
+                "limit":3,
+                "action":"mute", #mute, kick, ban
+            }
 
         },
         "locks":{
@@ -84,11 +89,32 @@ def add_new_group(chat_id:int):
             "forward":False,
             "inline":False,
             "inline_button":False,
-            "all":False
+            "all":False,
+            "empty_profile":False,
 
         }
     })
     
+def add_new_user(user_id:int,chat_id:int,if_not_exists:bool=True):
+    """
+    (SYNC)
+    Add a new user to the database.
+
+    :param user_id: int - The user ID to add.
+    :param chat_id: int - The chat ID to add the user to.
+    :param if_not_exists: bool - If the user not exists, create it. default: True.
+    :return: None
+    """
+    # check if the user is already in the database
+    user=C_USERS.find_one({"user_id":user_id})
+    chat_warns  = {"profile_photo":{"count":0},"normal":{"count":0}}
+
+    if not user:
+        return C_USERS.update_one({"user_id":user_id},{"$set":{
+            "warns":{
+                str(chat_id):chat_warns
+            },
+        }},upsert=True)
 def delete_group(chat_id:int,if_exists:bool=True):
     """
     (SYNC)
@@ -318,6 +344,10 @@ async def process_media_delete(media:telethon.tl.types.MessageMediaDocument,chat
     
     # check if the media type is locked
     media_type = get_media_type(media)
+    media_type = "all" if bool(group["locks"].get("all")) else media_type
+    media_type = "forward" if message.forward else media_type
+    media_type = "inline" if message.via_bot_id else media_type
+    
     if group["locks"].get(media_type) == True:
         await message.delete()
         logging.debug(f"Deleted message {message.id} in group {chat_id} because the media type ({media_type}) is locked.")
@@ -408,3 +438,70 @@ def toggle_char_limit(chat_id:int,):
     group = C_GROUPS.find_one({"chat_id":chat_id})
     enabled = not group["config"]["char_limit"]["enabled"]
     return bool(C_GROUPS.update_one({"chat_id":chat_id},{"$set":{"config.char_limit.enabled":enabled}}))
+
+async def process_char_limit_delete(chat_id:int,message:telethon.tl.custom.Message):
+    """
+    (ASYNC)
+    Delete a message if it exceeds the character limit.
+    :param chat_id: int - The chat ID to check.
+    :param message: telethon.tl.custom.Message - The message to check.
+    :return: None
+    """
+    group = C_GROUPS.find_one({"chat_id":chat_id})
+    if not group:
+        return
+    if group["config"]["char_limit"]["enabled"] and len(message.raw_text) > int(group["config"]["char_limit"]["limit"]):
+        await message.delete()
+        logging.debug(f"Deleted message {message.id} in group {chat_id} because it exceeded the character limit.")
+        return True
+
+
+
+
+def warn_profile_pic(user_id:int,chat_id:int):
+    """
+    (SYNC)
+    Warn a user for changing their profile picture.
+    :param user_id: int - The user ID to warn.
+    :param chat_id: int - The chat ID to warn.
+    :return: bool
+    """
+    return bool(C_USERS.update_one({"user_id":user_id},{"$inc":{f"warns.{chat_id}.profile_photo.count":1}}))
+
+def clear_profile_warns(user_id:int,chat_id:int):
+    """
+    (SYNC)
+    Clear the profile picture warning for a user.
+    :param user_id: int - The user ID to clear.
+    :param chat_id: int - The chat ID to clear.
+    :return: bool
+    """
+    return bool(C_USERS.update_one({"user_id":user_id},{"$set":{f"warns.{chat_id}.profile_photo.count":0}}))
+async def process_profile_photo_delete(chat_id:int,user_id:int,message:telethon.tl.custom.Message,client:telethon.TelegramClient):
+    """
+    (ASYNC)
+    Delete a profile photo if it is empty.
+    :param chat_id: int - The chat ID to check.
+    :param user_id: int - The user ID to check.
+    :param message: telethon.tl.custom.Message - The message to check.
+    :param client: telethon.TelegramClient - The client to use.
+    :return: None
+    """
+    group = C_GROUPS.find_one({"chat_id":chat_id})
+    
+    user = C_USERS.find_one({"user_id":user_id})
+    groups_warn = user['warns'][str(chat_id)]
+    if not group:
+        return
+    profs = await client.get_profile_photos(user_id,limit=1)
+    if groups_warn['profile_photo']['count'] >=group['config']['empty_profile']['limit'] and len(profs)>0:
+        clear_profile_warns(user_id,chat_id)
+    if group["locks"]["empty_profile"] == True and len(profs)<1:
+        await message.delete()
+        if groups_warn['profile_photo']['count']>=group['config']['empty_profile']['limit']:
+            logging.debug(f"Deleted msg {user_id} in group {chat_id} because the profile photo is empty.")
+        else:
+            await message.reply("WARN NO PROF PIC")
+            warn_profile_pic(user_id,chat_id)
+            logging.debug(f"Deleted msg and warn user {user_id} in group {chat_id} because the profile photo is empty.")
+        return True
