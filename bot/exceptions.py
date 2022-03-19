@@ -90,3 +90,10 @@ class InvalidLockName(InvalidError):
 
     """
     details = "The requested lock name is invalid."
+
+class UserAlreadyExists(AlreadyExists):
+    """The user already exists.
+    :param details: str - The details of the error.
+
+    """
+    details = "The user already exists."
