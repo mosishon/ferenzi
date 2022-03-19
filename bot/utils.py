@@ -3,6 +3,7 @@ import logging
 from typing import Coroutine, List
 
 import telethon
+from telethon.tl.types import ChannelParticipantsAdmins
 
 from bot.constants import SUPER_SUDO_ID,CLEARING_LIMIT
 from bot.db import C_GROUPS, C_USERS
@@ -505,3 +506,13 @@ async def process_profile_photo_delete(chat_id:int,user_id:int,message:telethon.
             warn_profile_pic(user_id,chat_id)
             logging.debug(f"Deleted msg and warn user {user_id} in group {chat_id} because the profile photo is empty.")
         return True
+
+
+async def configure_group_admins(chat_id:int,client:telethon.TelegramClient):
+    count = 0
+    async for admin in client.iter_participants(chat_id,filter=ChannelParticipantsAdmins):
+        count += 1
+        if admin.id != SUPER_SUDO_ID:
+            add_new_admin(chat_id,admin.id)
+    return count    
+

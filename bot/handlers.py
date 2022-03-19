@@ -2,14 +2,13 @@ import asyncio
 import logging
 import telethon
 from telethon.tl.custom import Message
-from telethon.tl.types import ChannelParticipantsAdmins
 from bot.constants import BOT_MESSAGE_DELTE_TIME, MINIMUM_CHAR_LIMIT, SUPER_SUDO_ID
 
 from bot.db import C_GROUPS
 from bot.exceptions import GroupAlreadyExists, GroupNotExists
 from bot.strings import (BOT_ALREADY_INSTALLED,ADMINS_CONFIGURED, BOT_INSTALLED_SUCCESSFULLY, BOT_ISNOT_INSTALLED, BOT_UNINSTALLED_SUCCESSFULLY, CHAT_LIMIT_PANEL, CLEAR_ALL, CLEATING_FINISHED, ENTER_CHAR_LIMIT, I_LEAVE_GROUP, IM_HERE_TO_HELP, MAKE_ME_ADMIN, PANEL_TEXT, PANEL_TEXTS_TO_OPEN, SHOULD_BE_GREATER_THAN_MINIMUM_CHAR_LIMIT, SHOULD_BE_NUMBER, START_ADMIN, START_SUDO_GROUP,START_USER, SUCCESFUL_CHAR_LIMIT_SET, THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU, UNKNOWN_ERROR_OCURRED,BOT_CLI_TITLE,CONFIGURE_ADMINS)
 from bot.buttons import (BACK_TO_CHAT_LIMIT_PANEL, CONTACT_SUPER_ADMIN,CONFIGURE_ADMINS_BTN, PANEL_CHAR_LIMIT_BTN, PANEL_HOME_BTN, PANEL_LOCKS_BTN)
-from bot.utils import add_new_admin, add_new_group, add_new_user, call_async, check_admin_access, check_group, clear_all_message, delete_after, delete_group, get_media_type, get_status, is_sudo, join_group, leave_group, process_char_limit_delete, process_media_delete, process_profile_photo_delete, set_char_limit, set_status, toggle_char_limit, update_lock
+from bot.utils import add_new_admin, add_new_group, add_new_user, call_async, check_admin_access, check_group, clear_all_message, configure_group_admins, delete_after, delete_group, get_media_type, get_status, is_sudo, join_group, leave_group, process_char_limit_delete, process_media_delete, process_profile_photo_delete, set_char_limit, set_status, toggle_char_limit, update_lock
 from bot.clients import client_user,client
 
 async def handle_message(message:Message):
@@ -175,11 +174,7 @@ async def handle_group_callback_admin(message:telethon.events.CallbackQuery.Even
     if data.lower() == "configure_admins":
         # Check if the user is a sudo or admin
         if is_sudo(user_id):
-            count = 0
-            async for admin in client.iter_participants(chat,filter=ChannelParticipantsAdmins):
-                count += 1
-                if admin.id != SUPER_SUDO_ID:
-                    add_new_admin(chat_id,admin.id)
+            count = await configure_group_admins(chat_id,client)
             await message.edit(ADMINS_CONFIGURED.format(count))
         else:
             await message.answer(THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU)
