@@ -17,3 +17,14 @@ CLEARING_LIMIT = 10000 # how much messages to delete in a group
 
 MINIMUM_CHAR_LIMIT = 50 # minimum characters to send a message
 BOT_MESSAGE_DELTE_TIME = 5 # how much time to delete a message #TODO should be dynamic later
+
+
+#ANSWER TYPES
+ANSWER_TYPES = {
+    "مدیر": 0,
+    "کاربر": 1,
+}
+
+
+#TZ
+TIME_ZONE = "Asia/Tehran"
