@@ -83,9 +83,7 @@ async def handle_group_message_admin(message:Message):
                     res = await join_group(client_user,invite_link.link)
                     client_user_id = await call_async(client_user,client_user.get_me)
                     await client.edit_admin(chat,client_user_id.id,delete_messages=True,ban_users=True,title=BOT_CLI_TITLE)
-                    owner = await client.get_participants(chat, filter=telethon.types.ChannelParticipantCreator)
-                    print(owner[0],owner[0].id)
-                    add_new_group(chat_id,owner[0].id)
+                    add_new_group(chat_id)
                     await message.reply(BOT_INSTALLED_SUCCESSFULLY)
                     await message.reply(CONFIGURE_ADMINS,buttons=CONFIGURE_ADMINS_BTN)
 
