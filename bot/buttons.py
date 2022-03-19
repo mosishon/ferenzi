@@ -87,6 +87,7 @@ T_PANEL_LOCK = ["قفل عکس" # Text T_PANEL_LOCKS_11
 ,"قفل اینلاین " # Text T_PANEL_LOCKS_181
 ,"قفل دکمه شیشه ای" # Text T_PANEL_LOCKS_191
 ,"قفل همه " # Text T_PANEL_LOCKS_201
+,"قفل کاربر بدون عکس پروفایل " # Text T_PANEL_LOCKS_201
 ]
 def PANEL_LOCKS_BTN(chat_id:int,user_id):
     """
