@@ -27,7 +27,7 @@ def get_admins(chat_id:int)->List[int]:
 def is_sudo(user_id:int)->bool:
     """
     (SYNC)
-    Check if a user is a sudo.
+    Check if a user is a SUPER sudo.
 
     :param user_id: int - The user ID to check.
     :return: bool
@@ -50,6 +50,7 @@ def add_new_group(chat_id:int):
     Add a new group to the database.
 
     :param chat_id: int - The chat ID to add.
+    :param owner: int - The owner ID to add.
     :return: None
     """
     # check if the group is already in the database
@@ -516,3 +517,15 @@ async def configure_group_admins(chat_id:int,client:telethon.TelegramClient):
             add_new_admin(chat_id,admin.id)
     return count    
 
+async def is_owner(user_id:int,chat_id:int,client:telethon.TelegramClient):
+    """
+    (ASYNC)
+    Check if a user is a group owner.
+    :param user_id: int - The user ID to check.
+    :param chat_id: int - The chat ID to check.
+    :param client: telethon.TelegramClient - The client to use.
+    :return: bool
+    """
+    owner = await client.get_participants(chat_id, filter=telethon.types.ChannelParticipantCreator)
+    print(owner)
+    return user_id == owner.id
