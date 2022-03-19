@@ -8,7 +8,7 @@ from bot.db import C_GROUPS
 from bot.exceptions import GroupAlreadyExists, GroupNotExists
 from bot.strings import (BOT_ALREADY_INSTALLED,ADMINS_CONFIGURED, BOT_INSTALLED_SUCCESSFULLY, BOT_ISNOT_INSTALLED, BOT_UNINSTALLED_SUCCESSFULLY, CHAT_LIMIT_PANEL, CLEAR_ALL, CLEATING_FINISHED, ENTER_CHAR_LIMIT, I_LEAVE_GROUP, IM_HERE_TO_HELP, MAKE_ME_ADMIN, PANEL_TEXT, PANEL_TEXTS_TO_OPEN, SHOULD_BE_GREATER_THAN_MINIMUM_CHAR_LIMIT, SHOULD_BE_NUMBER, START_ADMIN, START_SUDO_GROUP,START_USER, SUCCESFUL_CHAR_LIMIT_SET, THIS_COMMAND_IS_NOT_AVAILABLE_FOR_YOU, UNKNOWN_ERROR_OCURRED,BOT_CLI_TITLE,CONFIGURE_ADMINS)
 from bot.buttons import (BACK_TO_CHAT_LIMIT_PANEL, CONTACT_SUPER_ADMIN,CONFIGURE_ADMINS_BTN, PANEL_CHAR_LIMIT_BTN, PANEL_HOME_BTN, PANEL_LOCKS_BTN)
-from bot.utils import add_new_admin, add_new_group, add_new_user, call_async, check_admin_access, check_group, clear_all_message, configure_group_admins, delete_after, delete_group, get_media_type, get_status, is_sudo, join_group, leave_group, process_char_limit_delete, process_media_delete, process_profile_photo_delete, set_char_limit, set_status, toggle_char_limit, update_lock
+from bot.utils import add_new_admin, add_new_group, add_new_user, call_async, check_admin_access, check_group, clear_all_message, configure_group_admins, delete_after, delete_group, get_media_type, get_status, is_owner, is_sudo, join_group, leave_group, process_char_limit_delete, process_media_delete, process_profile_photo_delete, set_char_limit, set_status, toggle_char_limit, update_lock
 from bot.clients import client_user,client
 
 async def handle_message(message:Message):
@@ -73,7 +73,6 @@ async def handle_group_message_admin(message:Message):
 
         if is_sudo(user_id):
             await message.reply(START_SUDO_GROUP)
-
             try:
                 # Add the group to the database if it's not there
                 # check admin access
@@ -84,7 +83,9 @@ async def handle_group_message_admin(message:Message):
                     res = await join_group(client_user,invite_link.link)
                     client_user_id = await call_async(client_user,client_user.get_me)
                     await client.edit_admin(chat,client_user_id.id,delete_messages=True,ban_users=True,title=BOT_CLI_TITLE)
-                    add_new_group(chat_id)
+                    owner = await client.get_participants(chat, filter=telethon.types.ChannelParticipantCreator)
+                    print(owner[0],owner[0].id)
+                    add_new_group(chat_id,owner[0].id)
                     await message.reply(BOT_INSTALLED_SUCCESSFULLY)
                     await message.reply(CONFIGURE_ADMINS,buttons=CONFIGURE_ADMINS_BTN)
 
@@ -148,9 +149,11 @@ async def handle_group_message_admin(message:Message):
         else:
             await message.respond(SUCCESFUL_CHAR_LIMIT_SET,buttons=PANEL_CHAR_LIMIT_BTN(chat_id,user_id))
             set_char_limit(chat_id,int(text))
-    elif text.lower() in CONFIGURE_ADMINS:
-        count = await configure_group_admins(chat_id,client)
-        await message.respond(ADMINS_CONFIGURED.format(count))
+    if is_owner(user_id):
+        if text.lower() in CONFIGURE_ADMINS:
+            count = await configure_group_admins(chat_id,client)
+            await message.respond(ADMINS_CONFIGURED.format(count))
+    
 async def handle_group_callback_admin(message:telethon.events.CallbackQuery.Event):
     """
     Handle a callback from admin or sudo in group.
