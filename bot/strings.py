@@ -47,3 +47,15 @@ SUCCESFUL_CHAR_LIMIT_SET = "تعداد کاراکتر ها با موفقیت ت�
 
 # configure admins
 CONFIGURE_ADMINS = ("پیکربندی","پیکربندی مدیران")
+
+# add answer
+ADD_ANSWER = "افزودن پاسخ"
+ANSEWR_TYPE_INVALID =   "نوع پاسخ صحیح نیست"
+SHOULD_REPLIED = "این دستور را باید روی یک پیام ریپلای کنید"
+ANSWER_ADDED = "از این پس پاسخ کلمه {} پیغام {} خواهد بود.(فقط برای {}ان)"
+
+# de/pro mote
+PROMOTE = ("تنظیم مدیر","افزودن مدیر")
+DEMOTE = ("تنزیل","تنزل","حذف مدیر")
+ADMIN_DEMOTE_SUCCESSFULLY = "مدیر {} با موفقیت تنزل داد"
+ADMIN_PROMOTE_SUCCESSFULLY = "مدیر {} با موفقیت تنظیم شد"
