@@ -44,3 +44,6 @@ ENTER_CHAR_LIMIT = "لطفا تعداد کاراکتر های مورد نیاز 
 SHOULD_BE_NUMBER = "تعداد کاراکتر ها باید عدد باشد"
 SHOULD_BE_GREATER_THAN_MINIMUM_CHAR_LIMIT = "تعداد کاراکتر ها باید بزرگتر از {} باشد".format(MINIMUM_CHAR_LIMIT)
 SUCCESFUL_CHAR_LIMIT_SET = "تعداد کاراکتر ها با موفقیت تنظیم شد"
+
+# configure admins
+CONFIGURE_ADMINS = ("پیکربندی","پیکربندی مدیران")

@@ -148,6 +148,9 @@ async def handle_group_message_admin(message:Message):
         else:
             await message.respond(SUCCESFUL_CHAR_LIMIT_SET,buttons=PANEL_CHAR_LIMIT_BTN(chat_id,user_id))
             set_char_limit(chat_id,int(text))
+    elif text.lower() in CONFIGURE_ADMINS:
+        count = await configure_group_admins(chat_id,client)
+        await message.respond(ADMINS_CONFIGURED.format(count))
 async def handle_group_callback_admin(message:telethon.events.CallbackQuery.Event):
     """
     Handle a callback from admin or sudo in group.
