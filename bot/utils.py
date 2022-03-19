@@ -1,12 +1,14 @@
 import asyncio
+import datetime
 import logging
 from typing import Coroutine, List
+import pytz
 
 import telethon
 from telethon.tl.types import ChannelParticipantsAdmins
 
-from bot.constants import SUPER_SUDO_ID,CLEARING_LIMIT
-from bot.db import C_GROUPS, C_USERS
+from bot.constants import SUPER_SUDO_ID,CLEARING_LIMIT, TIME_ZONE
+from bot.db import C_ANSWERS, C_GROUPS, C_USERS
 from bot.exceptions import ClientAlreadyJoined, ClientNotJoined, GroupAlreadyExists, GroupNotExists, InvalidInviteLink,UserAlreadyAdmin,InvalidLockName, UserAlreadyExists
 from bot.strings import CLEARING_STARTED
 
@@ -23,6 +25,7 @@ def get_admins(chat_id:int)->List[int]:
     #     raise GroupNotExists(f"Group {chat_id} does not exist in the database.")
     logging.debug(f"Group {chat_id} admins: {group.get('admins')}")
     return group.get('admins',[])+[SUPER_SUDO_ID]
+
 
 def is_sudo(user_id:int)->bool:
     """
@@ -56,7 +59,13 @@ def add_new_group(chat_id:int):
     # check if the group is already in the database
     if C_GROUPS.find_one({"chat_id":chat_id}):
         raise GroupAlreadyExists(f"Group {chat_id} already exists in the database.")
-        
+    C_ANSWERS.insert_one({
+        "chat_id":chat_id,
+        "answers":{
+            "0":{},
+            "1":{},
+            }, # 0 - admins & 1 - users
+    })
     return C_GROUPS.insert_one({
         "chat_id": chat_id,
         "admins":[],
@@ -498,6 +507,8 @@ async def process_profile_photo_delete(chat_id:int,user_id:int,message:telethon.
     profs = await client.get_profile_photos(user_id,limit=1)
     if groups_warn['profile_photo']['count'] >=group['config']['empty_profile']['limit'] and len(profs)>0:
         clear_profile_warns(user_id,chat_id)
+        logging.debug(f"Warns of user {user_id} in group {chat_id} cleared.")
+        print("clr")
     if group["locks"]["empty_profile"] == True and len(profs)<1:
         await message.delete()
         if groups_warn['profile_photo']['count']>=group['config']['empty_profile']['limit']:
@@ -526,6 +537,74 @@ async def is_owner(user_id:int,chat_id:int,client:telethon.TelegramClient):
     :param client: telethon.TelegramClient - The client to use.
     :return: bool
     """
-    owner = await client.get_participants(chat_id, filter=telethon.types.ChannelParticipantCreator)
-    print(owner)
-    return user_id == owner.id
+    if is_sudo(user_id):
+        return True
+    owner = [i.participant async for i in client.iter_participants(chat_id, filter=telethon.types.ChannelParticipantsAdmins)]
+    for ow in owner:
+        if ow.user_id == user_id and isinstance(ow,telethon.types.ChannelParticipantCreator):
+            return True
+    return False
+    
+
+
+def add_answer(chat_id:int,word:str,answer:str,type:int):
+    """
+    (SYNC)
+    Add an answer to the database.
+    :param chat_id: int - The chat ID to add the answer to.
+    :param word: str - The word to add the answer to.
+    :param answer: str - The answer to add.
+    type: int - The type of answer to add.
+    :return: bool
+    """
+    return bool(C_ANSWERS.update_one({"chat_id":chat_id},{"$set":{f"answers.{type}.{word}":answer}}))
+
+
+def get_mension(message:telethon.tl.custom.Message):
+    """
+    (SYNC)
+    Get the mension of a message.
+    :param message: telethon.tl.custom.Message - The message to get the mension from.
+    :return: str
+    """
+    full_name = ((message.sender.first_name or "") + (message.sender.last_name or "")).strip() or ("@"+ message.sender.username)
+    if message.sender.username:
+        return f"[{full_name}](t.me/{message.sender.username})"
+
+        
+    else:
+        return f"[{full_name}](tg://user?id={message.sender_id})"
+    
+
+def check_answer(chat_id:int,message:telethon.custom.message.Message,type:int):
+    """
+    (SYNC)
+    Check if an answer exists in the database.
+    :param chat_id: int - The chat ID to check.
+    :param message: telethon.tl.custom.Message - The message to check.
+    :param type: int - The type to check.
+    :return: bool
+    """
+    word = message.raw_text.lower()
+    #return C_ANSWERS.find_one({"chat_id":chat_id,f"answers.{type}.{word}":{"$exists":True}})
+    res = list(C_ANSWERS.aggregate([{"$match":{"chat_id":chat_id,f"answers.{type}.{word}":{"$exists":True}}},{"$unwind":f"$answers"},{"$project":{"answer":f"$answers.{type}.{word}"}}]))
+    if len(res)>0:
+        answ = res[0]['answer']
+        answ = answ.replace("{@}",get_mension(message))
+        time = datetime.datetime.now(tz=pytz.timezone(TIME_ZONE)).strftime("%H:%M:%S")
+        answ = answ.replace("{time}",time)
+
+        return answ
+
+    return None
+
+
+def delete_admin(chat_id:int,user_id:int):
+    """
+    (SYNC)
+    Delete an admin from the database.
+    :param chat_id: int - The chat ID to delete the admin from.
+    :param user_id: int - The user ID to delete the admin from.
+    :return: bool
+    """
+    return bool(C_GROUPS.update_one({"chat_id":chat_id},{"$pull":{"admins":user_id}}))
