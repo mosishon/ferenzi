@@ -1,4 +1,5 @@
 from telethon import Button
+import telethon
 from bot.constants import SUPER_SUDO_USERNAME
 from bot.db import C_GROUPS
 from bot.exceptions import GroupNotExists
@@ -82,6 +83,8 @@ T_PANEL_LOCK = ["قفل عکس" # Text T_PANEL_LOCKS_11
 ,"قفل نظرسنجی " # Text T_PANEL_LOCKS_131
 ,"قفل لینک دعوت" # Text T_PANEL_LOCKS_141
 ,"قفل لینک" # Text T_PANEL_LOCKS_151
+,"قفل هشتگ"
+,"قفل منشن"
 ,"قفل سرویس تلگرام" # Text T_PANEL_LOCKS_161
 ,"قفل فوروارد " # Text T_PANEL_LOCKS_171
 ,"قفل اینلاین " # Text T_PANEL_LOCKS_181
@@ -127,3 +130,82 @@ def PANEL_CHAR_LIMIT_BTN(chat_id:int,user_id:int):
         [button_inline(T_CHAR_LIMIT_3,f"{user_id}|setCharLimit")], #param1: how access to this button
         [button_inline(T_CLOSE,F"{user_id}|close_menu")]#param1: how access to this button
     ]
+
+T_NEXTPAGE = "صفحه بعدی"
+T_PREVIOUSPAGE = "صفحه قبلی"
+def NEXTBACK_BTN(user_id:int,page:int,next:bool,prev:bool):
+    """
+    (SYNC)
+    Create a button to open the char limit panel.
+    
+    :param user_id: int - The user id who access the panel.
+    :param page: int - The page number."""
+    btns = [[]]
+    if next:
+        btns[0].append(button_inline(T_NEXTPAGE,f"{user_id}|nextPageFilter=>{page+1}"))
+    if prev:
+        btns[0].append(button_inline(T_PREVIOUSPAGE,f"{user_id}|previousPageFilter=>{page-1}") if page>1 else button_inline(T_PREVIOUSPAGE,f""))
+    if not(next or prev):
+        return None
+    return btns
+
+async def mute_user(chat_id:int,user_id:int,time:int,client:telethon.TelegramClient):
+    """
+    (ASYNC)
+    Mute a user in a group.
+    
+    :param chat_id: int - The chat id of group.
+    :param user_id: int - The user id to mute.
+    :param time: int - The time to mute in seconds
+    :param client: telethon.TelegramClient - The client to use."""
+    group = C_GROUPS.find_one({"chat_id":chat_id})
+    if not group:
+        raise GroupNotExists("Group with chat_id {} not exists".format(chat_id))
+    chat = await client.get_input_entity(chat_id)
+    user = await client.get_input_entity(user_id)
+    await client.edit_permissions(chat,user,0,send_messages=False)
+
+async def unmute_user(chat_id:int,user_id:int,time:int,client:telethon.TelegramClient):
+    """
+    (ASYNC)
+    Unmute a user in a group.
+    
+    :param chat_id: int - The chat id of group.
+    :param user_id: int - The user id to unmute.
+    :param client: telethon.TelegramClient - The client to use."""
+    group = C_GROUPS.find_one({"chat_id":chat_id})
+    if not group:
+        raise GroupNotExists("Group with chat_id {} not exists".format(chat_id))
+    chat = await client.get_input_entity(chat_id)
+    user = await client.get_input_entity(user_id)
+    await client.edit_permissions(chat,user,0,send_messages=True)
+
+async def ban_user(chat_id:int,user_id:int,time:int,client:telethon.TelegramClient):
+    """
+    (ASYNC)
+    Ban a user in a group.
+    
+    :param chat_id: int - The chat id of group.
+    :param user_id: int - The user id to ban.
+    :param client: telethon.TelegramClient - The client to use."""
+    group = C_GROUPS.find_one({"chat_id":chat_id})
+    if not group:
+        raise GroupNotExists("Group with chat_id {} not exists".format(chat_id))
+    chat = await client.get_input_entity(chat_id)
+    user = await client.get_input_entity(user_id)
+    await client.edit_permissions(chat,user,0,send_messages=False,view_messages=False)
+
+async def unban_user(chat_id:int,user_id:int,time:int,client:telethon.TelegramClient):
+    """
+    (ASYNC)
+    Unban a user in a group.
+    
+    :param chat_id: int - The chat id of group.
+    :param user_id: int - The user id to unban.
+    :param client: telethon.TelegramClient - The client to use."""
+    group = C_GROUPS.find_one({"chat_id":chat_id})
+    if not group:
+        raise GroupNotExists("Group with chat_id {} not exists".format(chat_id))
+    chat = await client.get_input_entity(chat_id)
+    user = await client.get_input_entity(user_id)
+    await client.edit_permissions(chat,user,0,send_messages=True,view_messages=True)

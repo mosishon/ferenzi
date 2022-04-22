@@ -46,7 +46,7 @@ SHOULD_BE_GREATER_THAN_MINIMUM_CHAR_LIMIT = "تعداد کاراکتر ها با
 SUCCESFUL_CHAR_LIMIT_SET = "تعداد کاراکتر ها با موفقیت تنظیم شد"
 
 # configure admins
-CONFIGURE_ADMINS = ("پیکربندی","پیکربندی مدیران")
+CONFIGURE_ADMINS_COMMAND = ("پیکربندی","پیکربندی مدیران")
 
 # add answer
 ADD_ANSWER = "افزودن پاسخ"
@@ -57,5 +57,19 @@ ANSWER_ADDED = "از این پس پاسخ کلمه {} پیغام {} خواهد �
 # de/pro mote
 PROMOTE = ("تنظیم مدیر","افزودن مدیر")
 DEMOTE = ("تنزیل","تنزل","حذف مدیر")
-ADMIN_DEMOTE_SUCCESSFULLY = "مدیر {} با موفقیت تنزل داد"
-ADMIN_PROMOTE_SUCCESSFULLY = "مدیر {} با موفقیت تنظیم شد"
+ADMIN_DEMOTE_SUCCESSFULLY = "کاربر {} با موفقیت تنزل داده شد "
+ADMIN_PROMOTE_SUCCESSFULLY = "کاربر {} با موفقیت ادمین شد"
+
+#filter a word
+FILTER_WORD = "فیلتر"
+FILTER_TYPE_INVALID = "فیلتر `{}` وجود ندارد."
+FILTER_ADDED = "کلمه `{}` با موفقیت به صورت `{}` فیلتر شد."
+
+# list filter
+LIST_FILTER = "لیست فیلتر"
+
+#ban & unban
+BAN_USER = "بن"
+UNBAN_USER = "انبن"
+MUTE_USER = "سکوت"
+UNMUTE_USER = "حذف سکوت"

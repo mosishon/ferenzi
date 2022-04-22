@@ -1,3 +1,4 @@
+import asyncio
 from bot.constants import (SESSION_NAME,SESSION2_NAME,API_ID,API_HASH)
 from bot.config import PROXY
 from telethon import TelegramClient

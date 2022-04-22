@@ -1,4 +1,5 @@
 # builin imports
+import asyncio
 from concurrent.futures import ProcessPoolExecutor
 import os
 import logging
@@ -33,19 +34,22 @@ logging.info("[!] User client started for logging in")
 client_user.disconnect()
 logging.info("[!] User client disconnected for logging in")
 
-from bot.handlers import (handle_group_callback_admin, handle_group_message_admin, handle_group_message_user, handle_message,handle_admin_message)
+from bot.handlers import (chat_action_handler, handle_group_callback_admin, handle_group_message_admin, handle_group_message_user, handle_message,handle_admin_message)
 
 # Add the event handler
 client.add_event_handler(handle_message,events.NewMessage(func=lambda x: x.is_private and x.sender_id not in get_admins(x.chat_id)))
 client.add_event_handler(handle_admin_message,events.NewMessage(func=lambda x: x.is_private and x.sender_id in get_admins(x.chat_id)))
 client.add_event_handler(handle_group_message_admin,events.NewMessage(func=lambda x: not x.is_private and x.sender_id in get_admins(x.chat_id)))
+client.add_event_handler(handle_group_message_admin,events.MessageEdited(func=lambda x: not x.is_private and x.sender_id in get_admins(x.chat_id)))
 client.add_event_handler(handle_group_message_user,events.NewMessage(func=lambda x: not x.is_private and x.sender_id not in get_admins(x.chat_id)))
+client.add_event_handler(handle_group_message_user,events.MessageEdited(func=lambda x: not x.is_private and x.sender_id not in get_admins(x.chat_id)))
 client.add_event_handler(handle_group_callback_admin,events.CallbackQuery(func=lambda x: not x.is_private and x.sender_id in get_admins(x.chat_id)))
-
+client.add_event_handler(chat_action_handler,events.ChatAction())
 if __name__ == "__main__":
     try:
         # Connect to the Telegram server (API Bot)
         client.start(bot_token=BOT_TOKEN)
+        
         logging.info("[!] Connected to Telegram server (API Bot)")
 
         # Connect to the Telegram server (User) in a separate process
@@ -62,6 +66,7 @@ if __name__ == "__main__":
         os.system("clear" if os.name == "posix" else "cls")
         print(colorama.Fore.GREEN+"[!] Bot started"+colorama.Fore.RESET)
         # Run the client until you press Ctrl-C or the process receives SIGINT,
+        
         client.run_until_disconnected()
     
     except KeyboardInterrupt:

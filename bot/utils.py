@@ -1,4 +1,5 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import datetime
 import logging
 from typing import Coroutine, List
@@ -8,7 +9,7 @@ import telethon
 from telethon.tl.types import ChannelParticipantsAdmins
 
 from bot.constants import SUPER_SUDO_ID,CLEARING_LIMIT, TIME_ZONE
-from bot.db import C_ANSWERS, C_GROUPS, C_USERS
+from bot.db import C_ANSWERS, C_FILTER, C_GROUPS, C_USERS
 from bot.exceptions import ClientAlreadyJoined, ClientNotJoined, GroupAlreadyExists, GroupNotExists, InvalidInviteLink,UserAlreadyAdmin,InvalidLockName, UserAlreadyExists
 from bot.strings import CLEARING_STARTED
 
@@ -66,6 +67,13 @@ def add_new_group(chat_id:int):
             "1":{},
             }, # 0 - admins & 1 - users
     })
+    C_FILTER.insert_one({
+        "chat_id":chat_id,
+        "words":{
+            "0":[],
+            "1":[]
+        }
+    })
     return C_GROUPS.insert_one({
         "chat_id": chat_id,
         "admins":[],
@@ -96,6 +104,8 @@ def add_new_group(chat_id:int):
             "poll":False,
             "invite_link":False,
             "link":False,
+            "hashtag":False,
+            "mension":False,
             "telegram_service":False,
             "forward":False,
             "inline":False,
@@ -296,7 +306,9 @@ def get_media_type(media:telethon.tl.types.MessageMediaDocument):
     if isinstance(media,telethon.tl.types.MessageMediaPhoto):
         return "photo"
     elif isinstance(media,telethon.tl.types.MessageMediaDocument):
-        if media.document.mime_type.startswith("image/"):
+        if hasattr(media.document.attributes[-1],"round_message"):
+            return "video_note"
+        elif media.document.mime_type.startswith("image/"):
             if media.document.mime_type.split("/")[-1] == "webp":
                 return "sticker"
             return "photo"
@@ -317,7 +329,7 @@ def get_media_type(media:telethon.tl.types.MessageMediaDocument):
     elif isinstance(media,telethon.tl.types.MessageMediaGeo):
         return "geo"
     elif isinstance(media,telethon.tl.types.MessageMediaVenue):
-        return "venue"
+        return "location"
     elif isinstance(media,telethon.tl.types.MessageMediaGeoLive):
         return "location"
     elif isinstance(media,telethon.tl.types.MessageMediaGame):
@@ -339,34 +351,53 @@ def get_media_type(media:telethon.tl.types.MessageMediaDocument):
     else:
         return "unknown"
 
-async def process_media_delete(media:telethon.tl.types.MessageMediaDocument,chat_id:int,message:telethon.tl.custom.Message):
+async def process_media_delete(message:telethon.tl.custom.Message):
     """
     process media and locks, and delete message if needed.
-    :param media: telethon.tl.types.MessageMedia - The media to check.
-    :param chat_id: int - The chat ID to check.
     :param message: telethon.tl.custom.Message - The message to check.
     [!] raise bot.exceptions.GroupNotExists if the group does not exist.
     :return: None
     """
+    chat_id =message.chat_id
     # check if the group exists
     group = C_GROUPS.find_one({"chat_id":chat_id})
+
+        
     if not group:
         raise GroupNotExists(f"Group {chat_id} does not exist in the database.")
     
     # check if the media type is locked
-    media_type = get_media_type(media)
-    media_type = "all" if bool(group["locks"].get("all")) else media_type
-    media_type = "forward" if message.forward else media_type
-    media_type = "inline" if message.via_bot_id else media_type
+    media_type = []
+    if isinstance(message,telethon.events.ChatAction.Event):
+        media_type.append("telegram_service")
+    else:
+        media = message.media
+        if len(message.raw_text)>0:
+            media_type.append("text")
+        if "t.me" in message.raw_text.lower():
+            media_type.append("invite_link")
+        if message.entities and any(isinstance(x, (telethon.types.MessageEntityUrl,telethon.types.MessageEntityTextUrl)) for x in message.entities):
+            media_type.append("link")
+        if message.entities and any(isinstance(x, telethon.types.MessageEntityHashtag) for x in message.entities):
+            media_type.append("hashtag")
+        if message.entities and any(isinstance(x, (telethon.types.MessageEntityMention,telethon.types.MessageEntityMentionName)) for x in message.entities):
+            media_type.append("mension")
+        media_type.append(get_media_type(media))
+        if bool(group["locks"].get("all")):
+            media_type.append("all")
+        if message.fwd_from:
+            media_type.append("forward")
+        if message.via_bot_id:
+            media_type.append("inline")
     
-    if group["locks"].get(media_type) == True:
-        await message.delete()
-        logging.debug(f"Deleted message {message.id} in group {chat_id} because the media type ({media_type}) is locked.")
-        return True
+    for mt in media_type:
+        if group["locks"].get(mt) == True:
+            await message.delete()
+            logging.debug(f"Deleted message {getattr(message,'id') or ''} in group {chat_id} because the media type ({media_type}) is locked.")
+            return True
     return False
 
 async def clear_all_message(client:telethon.TelegramClient,chat_id:int):
-    print("Start clearing")
     """
     (ASYNC)
     Clear all messages in a group.
@@ -450,14 +481,14 @@ def toggle_char_limit(chat_id:int,):
     enabled = not group["config"]["char_limit"]["enabled"]
     return bool(C_GROUPS.update_one({"chat_id":chat_id},{"$set":{"config.char_limit.enabled":enabled}}))
 
-async def process_char_limit_delete(chat_id:int,message:telethon.tl.custom.Message):
+async def process_char_limit_delete(message:telethon.tl.custom.Message):
     """
     (ASYNC)
     Delete a message if it exceeds the character limit.
-    :param chat_id: int - The chat ID to check.
     :param message: telethon.tl.custom.Message - The message to check.
     :return: None
     """
+    chat_id = message.chat_id
     group = C_GROUPS.find_one({"chat_id":chat_id})
     if not group:
         return
@@ -488,16 +519,16 @@ def clear_profile_warns(user_id:int,chat_id:int):
     :return: bool
     """
     return bool(C_USERS.update_one({"user_id":user_id},{"$set":{f"warns.{chat_id}.profile_photo.count":0}}))
-async def process_profile_photo_delete(chat_id:int,user_id:int,message:telethon.tl.custom.Message,client:telethon.TelegramClient):
+async def process_profile_photo_delete(message:telethon.tl.custom.Message,client:telethon.TelegramClient):
     """
     (ASYNC)
     Delete a profile photo if it is empty.
-    :param chat_id: int - The chat ID to check.
-    :param user_id: int - The user ID to check.
     :param message: telethon.tl.custom.Message - The message to check.
     :param client: telethon.TelegramClient - The client to use.
     :return: None
     """
+    chat_id = message.chat_id
+    user_id = message.sender_id
     group = C_GROUPS.find_one({"chat_id":chat_id})
     
     user = C_USERS.find_one({"user_id":user_id})
@@ -508,7 +539,6 @@ async def process_profile_photo_delete(chat_id:int,user_id:int,message:telethon.
     if groups_warn['profile_photo']['count'] >=group['config']['empty_profile']['limit'] and len(profs)>0:
         clear_profile_warns(user_id,chat_id)
         logging.debug(f"Warns of user {user_id} in group {chat_id} cleared.")
-        print("clr")
     if group["locks"]["empty_profile"] == True and len(profs)<1:
         await message.delete()
         if groups_warn['profile_photo']['count']>=group['config']['empty_profile']['limit']:
@@ -547,16 +577,20 @@ async def is_owner(user_id:int,chat_id:int,client:telethon.TelegramClient):
     
 
 
-def add_answer(chat_id:int,word:str,answer:str,type:int):
+def add_answer(chat_id:int,word:str,answer:str,type:int,media_id:str=None):
     """
     (SYNC)
     Add an answer to the database.
     :param chat_id: int - The chat ID to add the answer to.
     :param word: str - The word to add the answer to.
     :param answer: str - The answer to add.
+    :param media_id: str - The media ID to add.
     type: int - The type of answer to add.
     :return: bool
     """
+    if media_id:
+        print("media is",media_id,"chat id",chat_id)
+        C_ANSWERS.update_one({"chat_id":chat_id},{"$set":{f"answers.{type}.{word}-media":media_id}})
     return bool(C_ANSWERS.update_one({"chat_id":chat_id},{"$set":{f"answers.{type}.{word}":answer}}))
 
 
@@ -575,8 +609,7 @@ def get_mension(message:telethon.tl.custom.Message):
     else:
         return f"[{full_name}](tg://user?id={message.sender_id})"
     
-
-def check_answer(chat_id:int,message:telethon.custom.message.Message,type:int):
+def check_answer_(chat_id:int,message:telethon.custom.message.Message,type:int):
     """
     (SYNC)
     Check if an answer exists in the database.
@@ -586,17 +619,38 @@ def check_answer(chat_id:int,message:telethon.custom.message.Message,type:int):
     :return: bool
     """
     word = message.raw_text.lower()
+    if len(word)<1:
+        return False
+
     #return C_ANSWERS.find_one({"chat_id":chat_id,f"answers.{type}.{word}":{"$exists":True}})
+    
     res = list(C_ANSWERS.aggregate([{"$match":{"chat_id":chat_id,f"answers.{type}.{word}":{"$exists":True}}},{"$unwind":f"$answers"},{"$project":{"answer":f"$answers.{type}.{word}"}}]))
+    res2 = list(C_ANSWERS.aggregate([{"$match":{"chat_id":chat_id,f"answers.{type}.{word}-media":{"$exists":True}}},{"$unwind":f"$answers"},{"$project":{"answer":f"$answers.{type}.{word}-media"}}]))
+    print(res,res2)
     if len(res)>0:
+        args = []
         answ = res[0]['answer']
         answ = answ.replace("{@}",get_mension(message))
         time = datetime.datetime.now(tz=pytz.timezone(TIME_ZONE)).strftime("%H:%M:%S")
         answ = answ.replace("{time}",time)
+        args.append(answ)
+        if len(res2)>0:
+            args.append(res2[0]['answer'])
+        return args
+    return [False]
+async def check_answer(chat_id:int,message:telethon.custom.message.Message,type:int):
+    """
+    (ASYNC)
+    [[THIS FUNCTION WRAPS check_answer_() TO MAKE IT ASYNC]]
+    Check if an answer exists in the database.
+    :param chat_id: int - The chat ID to check.
+    :param message: telethon.tl.custom.Message - The message to check.
+    :param type: int - The type to check.
+    :return: bool
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(ThreadPoolExecutor(2),check_answer_,chat_id,message,type)
 
-        return answ
-
-    return None
 
 
 def delete_admin(chat_id:int,user_id:int):
@@ -608,3 +662,91 @@ def delete_admin(chat_id:int,user_id:int):
     :return: bool
     """
     return bool(C_GROUPS.update_one({"chat_id":chat_id},{"$pull":{"admins":user_id}}))
+
+
+
+def add_filter(chat_id:int,word:str,type:int):
+    """
+    (SYNC)
+    Add a filter to the database.
+    :param chat_id: int - The chat ID to add the filter to.
+    :param word: str - The word to add the filter to.
+    :param type: int - The type of filter to add.
+    :return: bool
+    """
+    return bool(C_FILTER.update_one({"chat_id":chat_id},{"$addToSet":{"words.{}".format(type):word.strip()}}))
+
+
+
+async def process_filter_delete(message:telethon.tl.custom.Message):
+    """
+    (ASYNC)
+    Process a filter delete.
+    :param message: telethon.tl.custom.Message - The message to process.
+    :return: bool
+    """
+    chat_id = message.chat_id
+    filters = C_FILTER.find_one({"chat_id":chat_id})
+    for filter0 in filters['words']['0']:
+        if filter0 in message.raw_text.lower():
+            await message.delete()
+            return True
+    for filter1 in filters['words']['1']:
+        if filter1 in message.raw_text.lower().split():
+            await message.delete()
+            return True
+    return False
+
+def delete_filter(chat_id:int,word:str):
+    """
+    (SYNC)
+    Delete a filter from the database.
+    :param chat_id: int - The chat ID to delete the filter from.
+    :param word: str - The word to delete the filter from.
+    :return: bool
+    """
+    return bool(C_GROUPS.update_one({"chat_id":chat_id},{"$pull":{"filters.{}".format("1"):word}})) or bool(C_GROUPS.update_one({"chat_id":chat_id},{"$pull":{"filters.{}".format("0"):word}}))
+
+def delete_answer(chat_id:int,word:str,type:int):
+    """
+    (SYNC)
+    Delete an answer from the database.
+    :param chat_id: int - The chat ID to delete the answer from.
+    :param word: str - The word to delete the answer from.
+    :param type: int - The type to delete the answer from.
+    :return: bool
+    """
+    return bool(C_ANSWERS.update_one({"chat_id":chat_id},{"$unset":{f"answers.{type}.{word}":1}}))
+
+def get_filter_list(chat_id:int,page:int):
+    """
+    (SYNC)
+    Get the filter list of a chat.
+    :param chat_id: int - The chat ID to get the filter list of.
+    :param page: int - The page to get the filter list of.
+
+    :return: list
+    """
+    words = C_FILTER.find_one({"chat_id":chat_id})['words']
+    words0 = words['0']
+    words1 = words['1']
+    count_all = len(words0) + len(words1)
+    count_added = 0
+    char = ""
+    before = (page*4)-4
+    for w0 in words0[before:page*4]:
+        char += f"**{count_added}**: {w0} - کلی\n"
+        count_added+=1
+    for w1 in words1[before:page*4]:
+        char += f"**{count_added}**: {w1} - کلمه\n"
+        count_added+=1
+    char += f"کل: {count_all} کلمه\n"
+    if count_added >= count_all:
+        next_page = page
+    else:
+        next_page = page+1
+    if page>1:
+        prev_page = page-1
+    else:
+        prev_page = page
+    return [char,next_page,prev_page]

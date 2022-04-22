@@ -13,3 +13,4 @@ db:database.Database = getattr(client, DATABASE_NAME)
 C_USERS = db.users
 C_GROUPS = db.groups
 C_ANSWERS = db.answers
+C_FILTER = db.filter
