@@ -1,11 +1,11 @@
 
 SESSION_NAME = 'API-SESSION'
 SESSION2_NAME = 'USER-SESSION'
-API_ID = 7932417
-API_HASH = 'c250664d2d69e7b59c1b010f55066935'
-BOT_TOKEN = '964234651:AAH-0Zcsq8PxVwnw6vo3Kifn0FwEmIMVxyg'
+API_ID = 00000000
+API_HASH = ''
+BOT_TOKEN = ''
 BOT_ID = int(BOT_TOKEN.split(":")[0])
-PHONE_NUMBER = '+49 1575 7525757'.strip()
+PHONE_NUMBER = ''.strip()
 DATABASE_NAME = 'ferenzi_bot' # lowercase name spaces and dot are not allowed use underscore instead ex: database_name
 
 # Sudo details
