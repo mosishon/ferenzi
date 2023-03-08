@@ -1,9 +1,9 @@
-
+import os
 SESSION_NAME = 'API-SESSION'
 SESSION2_NAME = 'USER-SESSION'
-API_ID = 00000000
-API_HASH = ''
-BOT_TOKEN = ''
+API_ID = int(os.environ["API_ID"])
+API_HASH = os.environ["API_HASH"]
+BOT_TOKEN = os.environ["BOT_TOKEN"]
 BOT_ID = int(BOT_TOKEN.split(":")[0])
 PHONE_NUMBER = ''.strip()
 DATABASE_NAME = 'ferenzi_bot' # lowercase name spaces and dot are not allowed use underscore instead ex: database_name
