@@ -4,7 +4,6 @@ from bot.constants import SUPER_SUDO_USERNAME
 from bot.db import C_GROUPS
 from bot.exceptions import GroupNotExists
 
-
 # Define three funciotns for creating buttons more easily
 def button_text(text:str)->Button:
     """
